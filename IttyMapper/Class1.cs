@@ -164,9 +164,68 @@ namespace IttyMapper
 
     internal static class FluentExtensions
     {
-        public static void Do<A>(this A a, Action<A> action) => action(a);
+        public static A Do<A>(this A a, Action<A> action)
+        {
+            action(a);
+            return a;
+        }
 
         public static B Map<A, B>(this A a, Func<A, B> map) => map(a);
+    }
+
+    public interface MappingAction
+    {
+        void Invoke(object source, object destination, IoC ioc, Mapper mapper, Context context);
+        int Priority { get; }
+
+        //The target member (or null)
+        string Target { get; }
+    }
+
+    public static class MappingPhase
+    {
+        public static int BeforeMapping = 0;
+        public static int Mapping = 1;
+        public static int AfterMapping = 2;
+    }
+
+    public abstract class PropertyMapAction<Destination> : MappingAction
+    {
+        private readonly Action<object, object> setter;
+        protected readonly MemberInfo MemberInfo;
+
+        protected PropertyMapAction(Expression<Func<Destination, object>> expression)
+        {
+            MemberInfo = ((MemberExpression)expression.Body).Member;
+            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), MemberInfo.Name);
+        }
+
+        public void Invoke(object source, object destination, IoC ioc, Mapper mapper, Context context)
+        {
+            //Potentially type check for further map here?
+            GetValue(source, destination, ioc, mapper, context).Do(value => setter(destination, value));
+        }
+
+        public abstract object GetValue(object source, object destination, IoC ioc, Mapper mapper, Context context);
+
+        public int Priority { get; } = MappingPhase.Mapping;
+
+        public string Target => MemberInfo.Name;
+    }
+
+    public class DirectPropertyMap<Source, Destination> : PropertyMapAction<Destination>
+    {
+        private readonly Func<object, object> getter;
+
+        public DirectPropertyMap(Expression<Func<Destination, object>> expression) : base(expression)
+        {
+            getter = new ExpressionBuilder().Getter(typeof(Source), MemberInfo.Name);
+        }
+
+        public override object GetValue(object source, object destination, IoC ioc, Mapper mapper, Context context)
+        {
+            return getter(source);
+        }
     }
 
     public class TypeMap
@@ -194,6 +253,7 @@ namespace IttyMapper
             {
                 var value = map.Value.GetValue(source, dst, ioc, mapper, context);
 
+                //null check!
                 if (value.GetType() != map.Value.TargetMember.PropertyType)
                     value = mapper.Map(value, value.GetType(), map.Value.TargetMember.PropertyType, context);
 
@@ -209,7 +269,7 @@ namespace IttyMapper
 
     public interface MemberMap //start with naive reflection implementation, then expression trees
     {
-        PropertyInfo TargetMember { get; }
+        FieldOrPropertyInfo TargetMember { get; }
         object GetValue(object src, object destination, IoC ioc, Mapper mapper, Context context);
     }
 
@@ -217,25 +277,14 @@ namespace IttyMapper
     {
         public Type Source { get; } = typeof(A);
 
-        public PropertyInfo TargetMember { get; }
+        public FieldOrPropertyInfo TargetMember { get; }
 
         private readonly Func<object, object> getter;
 
         public ReflectionBasedMemberMap(Expression<Func<A, object>> expression)
         {
-            TargetMember = expression.GetPropertyInfo();
-            getter = CreateGetter(TargetMember);
-        }
-
-        public ReflectionBasedMemberMap(string name)
-        {
-            TargetMember = typeof(A).GetProperty(name);
-            getter = CreateGetter(TargetMember);
-        }
-
-        private static Func<object, object> CreateGetter(PropertyInfo pi)
-        {
-            return x => pi.GetMethod.Invoke(x, null);
+            TargetMember = expression.GetFieldOrPropertyInfo();
+            getter = TargetMember.ReflectionGetter();
         }
 
         public object GetValue(object src, object destination, IoC ioc, Mapper mapper, Context context)
@@ -248,13 +297,13 @@ namespace IttyMapper
     {
         public Type Source { get; } = typeof(A);
 
-        public PropertyInfo TargetMember { get; }
+        public FieldOrPropertyInfo TargetMember { get; }
 
         private readonly Func<object, object> getter;
 
         public ExpressionBasedMemberMap(string name)
         {
-            TargetMember = Source.GetProperty(name);
+            TargetMember = new FieldOrPropertyInfoFactory().Get(typeof(A), name);
             getter = new ExpressionBuilder().Getter(Source, name);
         }
 
@@ -274,6 +323,14 @@ namespace IttyMapper
             return Expression.Lambda<Func<object, object>>(property, target).Compile();
         }
 
+        public Func<object, object> FieldGetter(Type type, string name)
+        {
+            var target = Expression.Parameter(typeof(object), "x");
+            var field = Expression.Field(target.Convert(type), name);
+
+            return Expression.Lambda<Func<object, object>>(field, target).Compile();
+        }
+
         public Action<object, object> Setter(Type type, string name)
         {
             //equivalent to (object x, object value) => ((type) x).name = (propertytype) value
@@ -287,10 +344,81 @@ namespace IttyMapper
         }
     }
 
-
-    public abstract class TypedMemberInfo : MemberInfo
+    public abstract class FieldOrPropertyInfo : MemberInfo
     {
-        public abstract Type YourType { get; }
+        private readonly MemberInfo mi;
+
+        protected FieldOrPropertyInfo(MemberInfo mi)
+        {
+            this.mi = mi;
+        }
+
+        public abstract Type FieldOrPropertyType { get; }
+
+        public abstract MemberExpression ExpressionGetter(Expression expression);
+
+        public abstract Func<object, object> ReflectionGetter();
+
+        #region sealed overrides
+        public sealed override object[] GetCustomAttributes(bool inherit) => mi.GetCustomAttributes(inherit);
+
+        public sealed override bool IsDefined(Type attributeType, bool inherit) => mi.IsDefined(attributeType, inherit);
+
+        public sealed override MemberTypes MemberType => mi.MemberType;
+
+        public sealed override string Name => mi.Name;
+
+        public sealed override Type DeclaringType => mi.DeclaringType;
+
+        public sealed override Type ReflectedType => mi.ReflectedType;
+
+        public sealed override object[] GetCustomAttributes(Type attributeType, bool inherit) => mi.GetCustomAttributes(attributeType, inherit);
+        #endregion
+    }
+
+    internal class FieldFieldOrPropertyInfo : FieldOrPropertyInfo
+    {
+        private readonly FieldInfo fi;
+
+        public FieldFieldOrPropertyInfo(FieldInfo fi) : base(fi)
+        {
+            this.fi = fi;
+        }
+
+        public override Type FieldOrPropertyType => fi.FieldType;
+
+        public override MemberExpression ExpressionGetter(Expression expression)
+        {
+            return Expression.Field(expression, fi.Name);
+        }
+
+        public override Func<object, object> ReflectionGetter()
+        {
+            return fi.GetValue;
+        }
+    }
+
+    internal class PropertyFieldOrPropertyInfo : FieldOrPropertyInfo
+    {
+        private readonly PropertyInfo pi;
+
+        public PropertyFieldOrPropertyInfo(PropertyInfo pi) : base(pi)
+        {
+            this.pi = pi;
+        }
+
+        public override Type FieldOrPropertyType => pi.PropertyType;
+
+        public override MemberExpression ExpressionGetter(Expression expression)
+        {
+            return Expression.Property(expression, pi.Name);
+        }
+
+        public override Func<object, object> ReflectionGetter()
+        {
+            var mi = pi.GetMethod;
+            return o => mi.Invoke(0, null);
+        }
     }
 
     public static class Extensions
@@ -306,14 +434,54 @@ namespace IttyMapper
                 action(item);
         }
 
-        public static PropertyInfo GetPropertyInfo<A>(this Expression<Func<A, object>> expression)
+        public static FieldOrPropertyInfo GetFieldOrPropertyInfo<A>(this Expression<Func<A, object>> expression)
         {
-            return (PropertyInfo)(expression.Body as MemberExpression).Member;
+            if (!(expression.Body is MemberExpression me))
+                throw new Exception("Expression body was not a simple getter");
+
+            if (me.Member is PropertyInfo pi)
+                return new PropertyFieldOrPropertyInfo(pi);
+
+            if (me.Member is FieldInfo fi)
+                return new FieldFieldOrPropertyInfo(fi);
+
+            throw new Exception("Only supported members are fields, properties.");
         }
 
         public static Action<object, object> SetterFor<A>(this SimpleSetterFactory factory, string member)
         {
             return factory.SetterFor(typeof(A), member);
+        }
+    }
+
+    public class FieldOrPropertyInfoFactory
+    {
+        public FieldOrPropertyInfo Get<A>(Expression<Func<A, object>> expression)
+        {
+            if (!(expression.Body is MemberExpression me))
+                throw new Exception("Expression body was not a simple getter");
+
+            if (me.Member is PropertyInfo pi)
+                return new PropertyFieldOrPropertyInfo(pi);
+
+            if (me.Member is FieldInfo fi)
+                return new FieldFieldOrPropertyInfo(fi);
+
+            throw new Exception("Only supported members are fields, properties.");
+        }
+
+        //Hidden properties might one day become an issue
+        public FieldOrPropertyInfo Get(Type type, string name)
+        {
+            var pi = type.GetProperty(name);
+            if (pi != null)
+                return new PropertyFieldOrPropertyInfo(pi);
+
+            var fi = type.GetField(name);
+            if (fi != null)
+                return new FieldFieldOrPropertyInfo(fi);
+
+            throw new Exception("Only supported members are fields, properties.");
         }
     }
 }
