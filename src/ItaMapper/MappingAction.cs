@@ -14,6 +14,22 @@ namespace ItaMapper
         string Target { get; }
     }
 
+    public class NoopAction<Source, Destination> : MappingAction<Source, Destination>
+    {
+        public NoopAction(Expression<Func<Destination, object>> expression)
+        {
+            Target = expression.GetMemberExpression().GetPropertyInfo().Name;
+        }
+
+        public void Map(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        {
+        }
+
+        public int Priority { get; } = MappingPhase.Mapping;
+
+        public string Target { get; } 
+    }
+
     public abstract class PropertyMapAction<Source, Destination> : MappingAction<Source, Destination>
     {
         private readonly Action<object, object> setter;
@@ -42,6 +58,41 @@ namespace ItaMapper
         public int Priority { get; } = MappingPhase.Mapping;
 
         public string Target => PropertyInfo.Name;
+    }
+
+    public class PropertyMapArguments<A, B>
+    {
+        public PropertyMapArguments(A source, B destination, ObjectInstantiator instantiator, Mapper mapper, PropertyInfo pi, Context context)
+        {
+            Source = source;
+            Destination = destination;
+            ObjectInstantiator = instantiator;
+            Mapper = mapper;
+            PropertyInfo = pi;
+            Context = context;
+        }
+
+        public A Source { get; }
+        public B Destination { get; }
+        public ObjectInstantiator ObjectInstantiator { get; }
+        public Mapper Mapper { get; }
+        public PropertyInfo PropertyInfo { get; }
+        public Context Context { get; }
+    }
+
+    public class InlinePropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>
+    {
+        private readonly Func<PropertyMapArguments<Source, Destination>, object> func;
+
+        public InlinePropertyMap(Expression<Func<Destination, object>> expression, Func<PropertyMapArguments<Source, Destination>, object> func) : base(expression)
+        {
+            this.func = func;
+        }
+
+        public override object GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        {
+            return func(new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context));
+        }
     }
 
     public class DirectPropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>

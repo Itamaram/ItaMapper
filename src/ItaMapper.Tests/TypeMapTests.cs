@@ -12,6 +12,7 @@ namespace ItaMapper.Tests
     public class Bar
     {
         public string Value { get; set; }
+        public string Value2 { get; set; }
     }
 
     public class TypeMapTests
@@ -19,10 +20,22 @@ namespace ItaMapper.Tests
         [Test]
         public void Sanity()
         {
-            var config = new TypeMapConfig<Foo, Bar>().MapRemainingProperties();
+            var config = new TypeMapConfig<Foo, Bar>().Ignore(b => b.Value2).MapRemainingProperties();
             var mapper = new ItaMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
             var bar = mapper.Map<Bar>(new Foo { Value = "optimism" });
             Assert.AreEqual("optimism", bar.Value);
+        }
+
+        [Test]
+        public void FunkyExtension()
+        {
+            var config = new TypeMapConfig<Foo, Bar>()
+                .Map(b => b.Value2, args => args.Source.Value);
+            var mapper = new ItaMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
+            var bar = mapper.Map<Bar>(new Foo { Value = "X" });
+
+            Assert.Null(bar.Value);
+            Assert.AreEqual("X", bar.Value2);
         }
     }
 
@@ -59,7 +72,7 @@ namespace ItaMapper.Tests
             Assert.AreEqual("hello!", foo.Value);
 
             var sw = Stopwatch.StartNew();
-            for(var i = 0 ; i < 1_000_000;i++)
+            for (var i = 0; i < 1_000_000; i++)
                 expr.Invoke(foo, "value");
             sw.Stop();
 

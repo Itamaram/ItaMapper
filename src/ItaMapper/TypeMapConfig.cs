@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
+using System.Reflection;
 using ItaMapper.Extensions;
 
 namespace ItaMapper
@@ -34,11 +37,23 @@ namespace ItaMapper
 
     public static class TypeMapConfigExtensions
     {
+        //should throw a better error for unmappable properties
         public static TypeMapConfig<A, B> MapRemainingProperties<A, B>(this TypeMapConfig<A, B> config)
         {
             return typeof(B).GetProperties()
                 .Where(p => !config.Targeting(p.Name))
                 .Aggregate(config, (c, p) => c.AddAction(new DirectPropertyMap<A, B>(p.Name)));
+        }
+
+        public static TypeMapConfig<A, B> Map<A, B>(this TypeMapConfig<A, B> config, Expression<Func<B, object>> selector, Func<PropertyMapArguments<A,B>, object> map)
+        {
+            return config.AddAction(new InlinePropertyMap<A, B>(selector, map));
+        }
+
+        public static TypeMapConfig<A, B> Ignore<A, B>(this TypeMapConfig<A, B> config,
+            Expression<Func<B, object>> selector)
+        {
+            return config.AddAction(new NoopAction<A, B>(selector));
         }
     }
 }
