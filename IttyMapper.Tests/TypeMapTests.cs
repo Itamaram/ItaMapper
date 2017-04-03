@@ -66,4 +66,12 @@ namespace IttyMapper.Tests
             Console.WriteLine($"1mil {factory.Name} iter: {sw.ElapsedMilliseconds:N0}ms");
         }
     }
+
+    public static class Extensions
+    {
+        public static Action<object, object> SetterFor<A>(this SimpleSetterFactory factory, string member)
+        {
+            return factory.SetterFor(typeof(A), member);
+        }
+    }
 }
