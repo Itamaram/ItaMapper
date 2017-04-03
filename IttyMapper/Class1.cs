@@ -48,7 +48,7 @@ namespace IttyMapper
 
         private static readonly IEnumerable<TypeMap> defaults = new[]
         {
-            new CloneTypeMap<string>(),
+            new PassthroughMap<string>(),
         };
     }
 
@@ -263,7 +263,7 @@ namespace IttyMapper
         protected abstract TDestination Map(TSource source, IoC ioc, Mapper mapper, Context context);
     }
 
-    public class CloneTypeMap<A> : TypeMap
+    public class PassthroughMap<A> : TypeMap
     {
         public Type Source { get; } = typeof(A);
 
@@ -294,7 +294,7 @@ namespace IttyMapper
 
     public interface MemberMap //start with naive reflection implementation, then expression trees
     {
-        FieldOrPropertyInfo TargetMember { get; }
+        PropertyInfo TargetMember { get; }
         object GetValue(object src, object destination, IoC ioc, Mapper mapper, Context context);
     }
 
@@ -302,14 +302,15 @@ namespace IttyMapper
     {
         public Type Source { get; } = typeof(A);
 
-        public FieldOrPropertyInfo TargetMember { get; }
+        public PropertyInfo TargetMember { get; }
 
         private readonly Func<object, object> getter;
 
         public ReflectionBasedMemberMap(Expression<Func<A, object>> expression)
         {
-            TargetMember = expression.GetFieldOrPropertyInfo();
-            getter = TargetMember.ReflectionGetter();
+            TargetMember = (expression.Body as MemberExpression).Member as PropertyInfo;
+            var mi = TargetMember.GetMethod;
+            getter = o => mi.Invoke(o, null);
         }
 
         public object GetValue(object src, object destination, IoC ioc, Mapper mapper, Context context)
@@ -322,13 +323,13 @@ namespace IttyMapper
     {
         public Type Source { get; } = typeof(A);
 
-        public FieldOrPropertyInfo TargetMember { get; }
+        public PropertyInfo TargetMember { get; }
 
         private readonly Func<object, object> getter;
 
         public ExpressionBasedMemberMap(string name)
         {
-            TargetMember = new FieldOrPropertyInfoFactory().Get(typeof(A), name);
+            TargetMember = typeof(A).GetProperty(name);
             getter = new ExpressionBuilder().Getter(Source, name);
         }
 
@@ -369,82 +370,6 @@ namespace IttyMapper
         }
     }
 
-    public abstract class FieldOrPropertyInfo : MemberInfo
-    {
-        private readonly MemberInfo mi;
-
-        protected FieldOrPropertyInfo(MemberInfo mi)
-        {
-            this.mi = mi;
-        }
-
-        public abstract Type FieldOrPropertyType { get; }
-
-        public abstract MemberExpression ExpressionGetter(Expression expression);
-
-        public abstract Func<object, object> ReflectionGetter();
-
-        #region sealed overrides
-        public sealed override object[] GetCustomAttributes(bool inherit) => mi.GetCustomAttributes(inherit);
-
-        public sealed override bool IsDefined(Type attributeType, bool inherit) => mi.IsDefined(attributeType, inherit);
-
-        public sealed override MemberTypes MemberType => mi.MemberType;
-
-        public sealed override string Name => mi.Name;
-
-        public sealed override Type DeclaringType => mi.DeclaringType;
-
-        public sealed override Type ReflectedType => mi.ReflectedType;
-
-        public sealed override object[] GetCustomAttributes(Type attributeType, bool inherit) => mi.GetCustomAttributes(attributeType, inherit);
-        #endregion
-    }
-
-    internal class FieldFieldOrPropertyInfo : FieldOrPropertyInfo
-    {
-        private readonly FieldInfo fi;
-
-        public FieldFieldOrPropertyInfo(FieldInfo fi) : base(fi)
-        {
-            this.fi = fi;
-        }
-
-        public override Type FieldOrPropertyType => fi.FieldType;
-
-        public override MemberExpression ExpressionGetter(Expression expression)
-        {
-            return Expression.Field(expression, fi.Name);
-        }
-
-        public override Func<object, object> ReflectionGetter()
-        {
-            return fi.GetValue;
-        }
-    }
-
-    internal class PropertyFieldOrPropertyInfo : FieldOrPropertyInfo
-    {
-        private readonly PropertyInfo pi;
-
-        public PropertyFieldOrPropertyInfo(PropertyInfo pi) : base(pi)
-        {
-            this.pi = pi;
-        }
-
-        public override Type FieldOrPropertyType => pi.PropertyType;
-
-        public override MemberExpression ExpressionGetter(Expression expression)
-        {
-            return Expression.Property(expression, pi.Name);
-        }
-
-        public override Func<object, object> ReflectionGetter()
-        {
-            var mi = pi.GetMethod;
-            return o => mi.Invoke(0, null);
-        }
-    }
 
     public static class Extensions
     {
@@ -459,19 +384,7 @@ namespace IttyMapper
                 action(item);
         }
 
-        public static FieldOrPropertyInfo GetFieldOrPropertyInfo<A>(this Expression<Func<A, object>> expression)
-        {
-            if (!(expression.Body is MemberExpression me))
-                throw new Exception("Expression body was not a simple getter");
 
-            if (me.Member is PropertyInfo pi)
-                return new PropertyFieldOrPropertyInfo(pi);
-
-            if (me.Member is FieldInfo fi)
-                return new FieldFieldOrPropertyInfo(fi);
-
-            throw new Exception("Only supported members are fields, properties.");
-        }
 
         public static Action<object, object> SetterFor<A>(this SimpleSetterFactory factory, string member)
         {
@@ -492,37 +405,6 @@ namespace IttyMapper
             where A : class
         {
             return items.Concat(item.Yield().Where(a => a != null));
-        }
-    }
-
-    public class FieldOrPropertyInfoFactory
-    {
-        public FieldOrPropertyInfo Get<A>(Expression<Func<A, object>> expression)
-        {
-            if (!(expression.Body is MemberExpression me))
-                throw new Exception("Expression body was not a simple getter");
-
-            if (me.Member is PropertyInfo pi)
-                return new PropertyFieldOrPropertyInfo(pi);
-
-            if (me.Member is FieldInfo fi)
-                return new FieldFieldOrPropertyInfo(fi);
-
-            throw new Exception("Only supported members are fields, properties.");
-        }
-
-        //Hidden properties might one day become an issue
-        public FieldOrPropertyInfo Get(Type type, string name)
-        {
-            var pi = type.GetProperty(name);
-            if (pi != null)
-                return new PropertyFieldOrPropertyInfo(pi);
-
-            var fi = type.GetField(name);
-            if (fi != null)
-                return new FieldFieldOrPropertyInfo(fi);
-
-            throw new Exception("Only supported members are fields, properties.");
         }
     }
 }
