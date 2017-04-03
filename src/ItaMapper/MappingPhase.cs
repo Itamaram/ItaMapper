@@ -1,4 +1,4 @@
-﻿namespace IttyMapper
+﻿namespace ItaMapper
 {
     public static class MappingPhase
     {

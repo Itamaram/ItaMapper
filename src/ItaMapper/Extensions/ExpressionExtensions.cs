@@ -1,9 +1,9 @@
 using System;
 using System.Linq.Expressions;
 using System.Reflection;
-using IttyMapper.Exceptions;
+using ItaMapper.Exceptions;
 
-namespace IttyMapper.Extensions
+namespace ItaMapper.Extensions
 {
     public static class ExpressionExtensions
     {

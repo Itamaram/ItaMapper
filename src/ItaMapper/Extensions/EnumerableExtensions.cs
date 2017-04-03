@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace IttyMapper.Extensions
+namespace ItaMapper.Extensions
 {
     public static class EnumerableExtensions
     {

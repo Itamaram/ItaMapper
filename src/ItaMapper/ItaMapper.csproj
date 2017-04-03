@@ -7,8 +7,8 @@
     <ProjectGuid>{30763D37-4053-4FE3-A0D8-AAB7C5F8247F}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>IttyMapper</RootNamespace>
-    <AssemblyName>IttyMapper</AssemblyName>
+    <RootNamespace>ItaMapper</RootNamespace>
+    <AssemblyName>ItaMapper</AssemblyName>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
@@ -52,7 +52,7 @@
     <Compile Include="Extensions\EnumerableExtensions.cs" />
     <Compile Include="Extensions\ExpressionExtensions.cs" />
     <Compile Include="Extensions\FluentExtensions.cs" />
-    <Compile Include="IttyMapper.cs" />
+    <Compile Include="ItaMapper.cs" />
     <Compile Include="Mapper.cs" />
     <Compile Include="MappingAction.cs" />
     <Compile Include="MappingPhase.cs" />

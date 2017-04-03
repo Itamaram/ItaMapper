@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Linq.Expressions;
 
-namespace IttyMapper.Exceptions
+namespace ItaMapper.Exceptions
 {
     public class NotPropertyExpressionExpresion : Exception
     {

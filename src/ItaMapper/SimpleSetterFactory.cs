@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Reflection;
-using IttyMapper.Extensions;
+using ItaMapper.Extensions;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public interface SimpleSetterFactory
     {

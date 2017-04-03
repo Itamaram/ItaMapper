@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace IttyMapper.Exceptions
+namespace ItaMapper.Exceptions
 {
     public class UnconfiguredMapException : Exception
     {

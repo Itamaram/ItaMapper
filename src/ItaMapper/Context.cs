@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public class Context : Dictionary<string, object>
     {

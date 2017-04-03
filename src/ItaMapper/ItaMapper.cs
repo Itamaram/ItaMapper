@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace IttyMapper
+namespace ItaMapper
 {
-    public class IttyMapper : BareMetalMapper
+    public class ItaMapper : BareMetalMapper
     {
-        public IttyMapper(IEnumerable<TypeMap> maps) : this(maps, new ActivatorInstantiator())
+        public ItaMapper(IEnumerable<TypeMap> maps) : this(maps, new ActivatorInstantiator())
         {
         }
 
-        public IttyMapper(IEnumerable<TypeMap> maps, ObjectInstantiator instantiator)
+        public ItaMapper(IEnumerable<TypeMap> maps, ObjectInstantiator instantiator)
             : base(maps.Concat(defaults), instantiator)
         {
         }

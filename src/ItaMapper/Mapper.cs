@@ -1,6 +1,6 @@
 using System;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public interface Mapper
     {

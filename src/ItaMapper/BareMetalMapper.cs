@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using IttyMapper.Exceptions;
+using ItaMapper.Exceptions;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public class BareMetalMapper : Mapper
     {

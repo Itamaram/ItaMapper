@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using IttyMapper.Extensions;
+using ItaMapper.Extensions;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public class TypeMapConfig<A, B>
     {

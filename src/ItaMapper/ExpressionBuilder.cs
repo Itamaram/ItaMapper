@@ -1,8 +1,8 @@
 using System;
 using System.Linq.Expressions;
-using IttyMapper.Extensions;
+using ItaMapper.Extensions;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public class ExpressionBuilder
     {

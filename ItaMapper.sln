@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IttyMapper", "IttyMapper\IttyMapper.csproj", "{30763D37-4053-4FE3-A0D8-AAB7C5F8247F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ItaMapper", "src\ItaMapper\ItaMapper.csproj", "{30763D37-4053-4FE3-A0D8-AAB7C5F8247F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IttyMapper.Tests", "IttyMapper.Tests\IttyMapper.Tests.csproj", "{6C75169E-5B75-4BDE-9556-75B82CD3D548}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ItaMapper.Tests", "src\ItaMapper.Tests\ItaMapper.Tests.csproj", "{6C75169E-5B75-4BDE-9556-75B82CD3D548}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

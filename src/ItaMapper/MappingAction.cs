@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Linq.Expressions;
 using System.Reflection;
-using IttyMapper.Extensions;
+using ItaMapper.Extensions;
 
-namespace IttyMapper
+namespace ItaMapper
 {
     public interface MappingAction<in Source, in Destination>
     {

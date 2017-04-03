@@ -1,6 +1,6 @@
 using System;
 
-namespace IttyMapper.Extensions
+namespace ItaMapper.Extensions
 {
     internal static class FluentExtensions
     {
