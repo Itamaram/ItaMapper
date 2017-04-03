@@ -11,20 +11,20 @@ namespace IttyMapper
         object Map(object src, Type source, Type destination, Context context);
     }
 
-    public class IttyMapper : Mapper
+    public class BareMetalMapper : Mapper
     {
         private readonly IoC ioc;
         private readonly TypeMapDictionary maps;
 
-        public IttyMapper(IEnumerable<TypeMapConfig> maps)
-            : this(Activate, maps) { }
+        public BareMetalMapper(IEnumerable<TypeMap> maps)
+            : this(maps, Activate) { }
 
         private static object Activate(Type t) => Activator.CreateInstance(t);
 
-        public IttyMapper(IoC ioc, IEnumerable<TypeMapConfig> maps)
+        public BareMetalMapper(IEnumerable<TypeMap> maps, IoC ioc)
         {
             this.ioc = ioc;
-            this.maps = new TypeMapDictionary(maps.Select(m => new TypeMap(m, new ExpressionSetterFactory())));
+            this.maps = new TypeMapDictionary(maps);
         }
 
         public object Map(object src, Type source, Type destination, Context context)
@@ -34,6 +34,22 @@ namespace IttyMapper
 
             throw new Exception("Missing type map");
         }
+    }
+
+    public class IttyMapper : BareMetalMapper
+    {
+        public IttyMapper(IEnumerable<TypeMap> maps) : base(maps.Concat(defaults))
+        {
+        }
+
+        public IttyMapper(IEnumerable<TypeMap> maps, IoC ioc) : base(maps.Concat(defaults), ioc)
+        {
+        }
+
+        private static readonly IEnumerable<TypeMap> defaults = new[]
+        {
+            new CloneTypeMap<string>(),
+        };
     }
 
     public class TypeMapDictionary
@@ -83,61 +99,44 @@ namespace IttyMapper
 
 
     //With extensions like .MapRemainingMembers
-    public interface TypeMapConfig
+    //This is thte wrong abstraction?
+    public class TypeMapConfig<A, B> 
     {
-        Type Source { get; }
-        Type Destination { get; }
-        IReadOnlyDictionary<string, MemberMap> MemberMaps { get; }
-        IEnumerable<MutateDestination> BeforeMap { get; }
-        IEnumerable<MutateDestination> AfterMap { get; }
-    }
+        private readonly HashSet<string> targets;
 
-    public class TypeMapConfig<A, B> : TypeMapConfig
-    {
-        public Type Source { get; } = typeof(A);
-        public Type Destination { get; } = typeof(B);
-
-        private readonly Dictionary<string, MemberMap> configs = new Dictionary<string, MemberMap>();
-        public IReadOnlyDictionary<string, MemberMap> MemberMaps => configs;
-
-        private readonly List<MutateDestination> before = new List<MutateDestination>();
-        public IEnumerable<MutateDestination> BeforeMap => before;
-
-        private readonly List<MutateDestination> after = new List<MutateDestination>();
-        public IEnumerable<MutateDestination> AfterMap => after;
-
-        public TypeMapConfig<A, B> Before(MutateDestination m)
+        public TypeMapConfig()
         {
-            before.Add(m);
-            return this;
+            Actions = new List<MappingAction<A,B>>();
+            targets = new HashSet<string>();
         }
 
-        public TypeMapConfig<A, B> After(MutateDestination m)
+        private TypeMapConfig(IEnumerable<MappingAction<A,B>> actions, IEnumerable<string> targets)
         {
-            after.Add(m);
-            return this;
+            Actions = actions.ToList();
+            this.targets = new HashSet<string>(targets);
         }
 
-        public TypeMapConfig<A, B> AddMap(MemberMap map)
+        public TypeMapConfig<A, B> AddAction(MappingAction<A,B> action)
         {
-            configs.Add(map.TargetMember.Name, map);
-            return this;
+            return new TypeMapConfig<A, B>(Actions.Append(action), targets.AppendIfNotNull(action.Target));
         }
+
+        public IEnumerable<MappingAction<A,B>> Actions { get; }
+
+        public IEnumerable<string> Targets => targets;
+
+        public bool Targeting(string target) => targets.Contains(target);
     }
 
     public static class TypeMapConfigExtensions
     {
         public static TypeMapConfig<A, B> MapRemainingProperties<A, B>(this TypeMapConfig<A, B> config)
         {
-            typeof(B).GetProperties()
-                .Where(p => !config.MemberMaps.ContainsKey(p.Name))
-                .ForEach(p => config.AddMap(new ReflectionBasedMemberMap<A>(p.Name)));
-
-            return config;
+            return typeof(B).GetProperties()
+                .Where(p => !config.Targeting(p.Name))
+                .Aggregate(config, (c, p) => c.AddAction(new DirectPropertyMap<A, B>(p.Name)));
         }
     }
-
-    public delegate void MutateDestination(ref object dst, Context context);
 
     public interface SimpleSetterFactory
     {
@@ -173,9 +172,9 @@ namespace IttyMapper
         public static B Map<A, B>(this A a, Func<A, B> map) => map(a);
     }
 
-    public interface MappingAction
+    public interface MappingAction<in Source, in Destination>
     {
-        void Invoke(object source, object destination, IoC ioc, Mapper mapper, Context context);
+        void Map(Source source, Destination destination, IoC ioc, Mapper mapper, Context context);
         int Priority { get; }
 
         //The target member (or null)
@@ -189,79 +188,105 @@ namespace IttyMapper
         public static int AfterMapping = 2;
     }
 
-    public abstract class PropertyMapAction<Destination> : MappingAction
+    public abstract class PropertyMapAction<Source, Destination> : MappingAction<Source, Destination>
     {
         private readonly Action<object, object> setter;
-        protected readonly MemberInfo MemberInfo;
+        protected readonly PropertyInfo PropertyInfo;
 
         protected PropertyMapAction(Expression<Func<Destination, object>> expression)
         {
-            MemberInfo = ((MemberExpression)expression.Body).Member;
-            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), MemberInfo.Name);
+            PropertyInfo = (PropertyInfo)((MemberExpression)expression.Body).Member;
+            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), PropertyInfo.Name);
         }
 
-        public void Invoke(object source, object destination, IoC ioc, Mapper mapper, Context context)
+        protected PropertyMapAction(string name)
         {
-            //Potentially type check for further map here?
-            GetValue(source, destination, ioc, mapper, context).Do(value => setter(destination, value));
+            PropertyInfo = typeof(Destination).GetProperty(name);
+            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), PropertyInfo.Name);
         }
 
-        public abstract object GetValue(object source, object destination, IoC ioc, Mapper mapper, Context context);
+        public void Map(Source source, Destination destination, IoC ioc, Mapper mapper, Context context)
+        {
+            GetValue(source, destination, ioc, mapper, context)
+                .Do(value => setter(destination, value));
+        }
+
+        public abstract object GetValue(Source source, Destination destination, IoC ioc, Mapper mapper, Context context);
 
         public int Priority { get; } = MappingPhase.Mapping;
 
-        public string Target => MemberInfo.Name;
+        public string Target => PropertyInfo.Name;
     }
 
-    public class DirectPropertyMap<Source, Destination> : PropertyMapAction<Destination>
+    public class DirectPropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>
     {
         private readonly Func<object, object> getter;
+        private readonly Type sourceProperty;
 
         public DirectPropertyMap(Expression<Func<Destination, object>> expression) : base(expression)
         {
-            getter = new ExpressionBuilder().Getter(typeof(Source), MemberInfo.Name);
+            getter = new ExpressionBuilder().Getter(typeof(Source), PropertyInfo.Name);
+            sourceProperty = typeof(Source).GetProperty(PropertyInfo.Name).PropertyType;
         }
 
-        public override object GetValue(object source, object destination, IoC ioc, Mapper mapper, Context context)
+        public DirectPropertyMap(string name) : base(name)
         {
-            return getter(source);
+            getter = new ExpressionBuilder().Getter(typeof(Source), PropertyInfo.Name);
+            sourceProperty = typeof(Source).GetProperty(PropertyInfo.Name).PropertyType;
+        }
+
+        public override object GetValue(Source source, Destination destination, IoC ioc, Mapper mapper, Context context)
+        {
+            return getter(source)
+                .Map(value => mapper.Map(value, sourceProperty, PropertyInfo.PropertyType, context));
         }
     }
 
-    public class TypeMap
+    public interface TypeMap
     {
-        private readonly TypeMapConfig config;
-        public Type Source => config.Source;
-        public Type Destination => config.Destination;
+        Type Source { get; }
+        Type Destination { get; }
+        object Map(object source, IoC ioc, Mapper mapper, Context context);
+    }
 
-        private readonly IReadOnlyDictionary<string, Action<object, object>> setters;
+    public abstract class TypeMap<TSource, TDestination> : TypeMap
+    {
+        public Type Source { get; } = typeof(TSource);
 
-        public TypeMap(TypeMapConfig config, SimpleSetterFactory factory)
-        {
-            this.config = config;
-            setters = config.MemberMaps.Keys.ToDictionary(x => x, x => factory.SetterFor(config.Destination, x));
-        }
+        public Type Destination { get; } = typeof(TDestination);
 
         public object Map(object source, IoC ioc, Mapper mapper, Context context)
         {
-            var dst = ioc(config.Destination);
+            return Map((TSource)source, ioc, mapper, context);
+        }
 
-            foreach (var before in config.BeforeMap)
-                before(ref dst, context);
+        protected abstract TDestination Map(TSource source, IoC ioc, Mapper mapper, Context context);
+    }
 
-            foreach (var map in config.MemberMaps)
-            {
-                var value = map.Value.GetValue(source, dst, ioc, mapper, context);
+    public class CloneTypeMap<A> : TypeMap
+    {
+        public Type Source { get; } = typeof(A);
 
-                //null check!
-                if (value.GetType() != map.Value.TargetMember.PropertyType)
-                    value = mapper.Map(value, value.GetType(), map.Value.TargetMember.PropertyType, context);
+        public Type Destination { get; } = typeof(A);
 
-                setters[map.Key].Invoke(dst, value);
-            }
+        public object Map(object source, IoC ioc, Mapper mapper, Context context) => source;
+    }
 
-            foreach (var after in config.AfterMap)
-                after(ref dst, context);
+    public class ActionAggregateTypeMap<TSource, TDestination> : TypeMap<TSource, TDestination>
+    {
+        private readonly IReadOnlyList<MappingAction<TSource, TDestination>> actions;
+
+        public ActionAggregateTypeMap(TypeMapConfig<TSource, TDestination> config)
+        {
+            actions = config.Actions.OrderBy(a => a.Priority).ToList();
+        }
+
+        protected override TDestination Map(TSource source, IoC ioc, Mapper mapper, Context context)
+        {
+            var dst = (TDestination) ioc(Destination);
+
+            foreach (var action in actions)
+                action.Map(source, dst, ioc, mapper, context);
 
             return dst;
         }
@@ -451,6 +476,22 @@ namespace IttyMapper
         public static Action<object, object> SetterFor<A>(this SimpleSetterFactory factory, string member)
         {
             return factory.SetterFor(typeof(A), member);
+        }
+
+        public static IEnumerable<A> Yield<A>(this A a)
+        {
+            yield return a;
+        }
+
+        public static IEnumerable<A> Append<A>(this IEnumerable<A> items, A item)
+        {
+            return items.Concat(item.Yield());
+        }
+
+        public static IEnumerable<A> AppendIfNotNull<A>(this IEnumerable<A> items, A item)
+            where A : class
+        {
+            return items.Concat(item.Yield().Where(a => a != null));
         }
     }
 

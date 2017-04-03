@@ -20,7 +20,7 @@ namespace IttyMapper.Tests
         public void Sanity()
         {
             var config = new TypeMapConfig<Foo, Bar>().MapRemainingProperties();
-            var mapper = new IttyMapper(new[] { config });
+            var mapper = new IttyMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
             var bar = mapper.Map<Bar>(new Foo { Value = "optimism" });
             Assert.AreEqual("optimism", bar.Value);
         }
