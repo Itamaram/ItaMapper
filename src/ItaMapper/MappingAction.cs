@@ -131,18 +131,23 @@ namespace ItaMapper
         }
     }
 
-    public class InlinePropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>
+    public class InlinePropertyMap<A, B> : PropertyMapAction<A, B>
     {
-        private readonly Func<PropertyMapArguments<Source, Destination>, TypedObject> func;
+        private readonly Func<PropertyMapArguments<A, B>, TypedObject> func;
 
-        public InlinePropertyMap(Expression<Func<Destination, object>> expression, Func<PropertyMapArguments<Source, Destination>, TypedObject> func) : base(expression)
+        public InlinePropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, TypedObject> func) : base(expression)
         {
             this.func = func;
         }
 
-        public override TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public InlinePropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> func) : base(expression)
         {
-            return new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context)
+            this.func = args => func(args).Pipe(resolver => new TypedObject(resolver.MemberType, resolver.Resolve(args)));
+        }
+
+        public override TypedObject GetValue(A source, B destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        {
+            return new PropertyMapArguments<A, B>(source, destination, instantiator, mapper, PropertyInfo, context)
                 .Pipe(func);
         }
     }

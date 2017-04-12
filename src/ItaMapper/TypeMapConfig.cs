@@ -90,7 +90,7 @@ namespace ItaMapper
 
         public TypeMapConfig<A, B> Using(Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> factory)
         {
-            return config.Map(selector, args => factory(args).Pipe(resolver => new TypedObject(resolver.MemberType, resolver.Resolve(args))));
+            return config.AddAction(new InlinePropertyMap<A, B>(selector, factory));
         }
 
         public TypeMapConfig<A, B> Using(ValueResolver<A, B> resolver)
