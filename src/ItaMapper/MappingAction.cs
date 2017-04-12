@@ -125,8 +125,25 @@ namespace ItaMapper
 
         public override TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
         {
-            return func(new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context))
+            return new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context)
+                .Pipe(func)
                 .Pipe(value => new TypedObject(typeof(Result), value));
+        }
+    }
+
+    public class InlinePropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>
+    {
+        private readonly Func<PropertyMapArguments<Source, Destination>, TypedObject> func;
+
+        public InlinePropertyMap(Expression<Func<Destination, object>> expression, Func<PropertyMapArguments<Source, Destination>, TypedObject> func) : base(expression)
+        {
+            this.func = func;
+        }
+
+        public override TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        {
+            return new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context)
+                .Pipe(func);
         }
     }
 

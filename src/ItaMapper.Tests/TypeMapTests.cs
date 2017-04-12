@@ -42,7 +42,7 @@ namespace ItaMapper.Tests
         public void FluentExtensionsTest()
         {
             var mapper = new TypeMapConfig<Foo, Bar>()
-                .Map(b => b.Value2).From(args => args.Source.Value)
+                .Map(b => b.Value2).Using(args => args.Source.Value)
                 .ToMap()
                 .ToMapper();
 
@@ -56,7 +56,7 @@ namespace ItaMapper.Tests
         public void FluentExtensionsFromSourceTest()
         {
             var mapper = new TypeMapConfig<Foo, Bar>()
-                .Map(b => b.Value2).FromSource(src => src.Value)
+                .Map(b => b.Value2).From(src => src.Value)
                 .ToMap()
                 .ToMapper();
 
@@ -64,6 +64,28 @@ namespace ItaMapper.Tests
 
             Assert.Null(bar.Value);
             Assert.AreEqual("X", bar.Value2);
+        }
+
+        [Test]
+        public void ResolverTest()
+        {
+            var mapper = new TypeMapConfig<Foo, Bar>()
+                .Map(b => b.Value2).Using<TestResolver>()
+                .ToMap()
+                .ToMapper();
+
+            var bar = mapper.Map<Bar>(new Foo { Value = "X" });
+
+            Assert.Null(bar.Value);
+            Assert.AreEqual("X", bar.Value2);
+        }
+
+        private class TestResolver : ValueResolver<Foo, Bar, string>
+        {
+            protected override string ResolveValue(PropertyMapArguments<Foo, Bar> args)
+            {
+                return args.Source.Value;
+            }
         }
     }
 
