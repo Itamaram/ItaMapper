@@ -21,7 +21,7 @@ namespace ItaMapper.Tests
         public void Sanity()
         {
             var config = new TypeMapConfig<Foo, Bar>().Ignore(b => b.Value2).MapRemainingProperties();
-            var mapper = new ItaMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
+            var mapper = new ItaMapper(new[] { config.ToMap() });
             var bar = mapper.Map<Bar>(new Foo { Value = "optimism" });
             Assert.AreEqual("optimism", bar.Value);
         }
@@ -32,6 +32,34 @@ namespace ItaMapper.Tests
             var config = new TypeMapConfig<Foo, Bar>()
                 .Map(b => b.Value2, args => args.Source.Value);
             var mapper = new ItaMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
+            var bar = mapper.Map<Bar>(new Foo { Value = "X" });
+
+            Assert.Null(bar.Value);
+            Assert.AreEqual("X", bar.Value2);
+        }
+
+        [Test]
+        public void FluentExtensionsTest()
+        {
+            var mapper = new TypeMapConfig<Foo, Bar>()
+                .Map(b => b.Value2).From(args => args.Source.Value)
+                .ToMap()
+                .ToMapper();
+
+            var bar = mapper.Map<Bar>(new Foo { Value = "X" });
+
+            Assert.Null(bar.Value);
+            Assert.AreEqual("X", bar.Value2);
+        }
+
+        [Test]
+        public void FluentExtensionsFromSourceTest()
+        {
+            var mapper = new TypeMapConfig<Foo, Bar>()
+                .Map(b => b.Value2).FromSource(src => src.Value)
+                .ToMap()
+                .ToMapper();
+
             var bar = mapper.Map<Bar>(new Foo { Value = "X" });
 
             Assert.Null(bar.Value);
@@ -85,6 +113,11 @@ namespace ItaMapper.Tests
         public static Action<object, object> SetterFor<A>(this SimpleSetterFactory factory, string member)
         {
             return factory.SetterFor(typeof(A), member);
+        }
+
+        public static Mapper ToMapper(this TypeMap map)
+        {
+            return new ItaMapper(new[] { map });
         }
     }
 }

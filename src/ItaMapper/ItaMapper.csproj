@@ -45,6 +45,7 @@
   <ItemGroup>
     <Compile Include="BareMetalMapper.cs" />
     <Compile Include="Context.cs" />
+    <Compile Include="Exceptions\NoDirectMapTargetException.cs" />
     <Compile Include="Exceptions\NotMemberExpressionException.cs" />
     <Compile Include="Exceptions\NotPropertyExpressionExpresion.cs" />
     <Compile Include="Exceptions\UnconfiguredMapException.cs" />

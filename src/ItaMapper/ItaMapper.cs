@@ -17,6 +17,7 @@ namespace ItaMapper
         private static readonly IEnumerable<TypeMap> defaults = new[]
         {
             new PassthroughMap<string>(),
+            //todo more primitives.
         };
     }
 }

@@ -13,7 +13,7 @@ namespace ItaMapper
     {
         public Action<object, object> SetterFor(Type type, string member)
         {
-            return type.GetProperty(member).SetMethod.Map(Invoke);
+            return type.GetProperty(member).SetMethod.Pipe(Invoke);
         }
 
         private static Action<object, object> Invoke(MethodInfo mi) => (x, y) => mi.Invoke(x, new[] { y });

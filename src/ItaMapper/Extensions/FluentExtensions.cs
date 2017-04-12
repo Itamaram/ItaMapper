@@ -10,6 +10,6 @@ namespace ItaMapper.Extensions
             return a;
         }
 
-        public static B Map<A, B>(this A a, Func<A, B> map) => map(a);
+        public static B Pipe<A, B>(this A a, Func<A, B> map) => map(a);
     }
 }
