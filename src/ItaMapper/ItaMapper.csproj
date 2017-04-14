@@ -43,11 +43,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BareMetalMapper.cs" />
+    <Compile Include="BareBoneMapper.cs" />
     <Compile Include="Context.cs" />
     <Compile Include="Exceptions\NoDirectMapTargetException.cs" />
     <Compile Include="Exceptions\NotMemberExpressionException.cs" />
     <Compile Include="Exceptions\NotPropertyExpressionExpresion.cs" />
+    <Compile Include="Exceptions\TypeIsNotResolverException.cs" />
     <Compile Include="Exceptions\UnconfiguredMapException.cs" />
     <Compile Include="ExpressionBuilder.cs" />
     <Compile Include="Extensions\EnumerableExtensions.cs" />

@@ -14,7 +14,12 @@ namespace ItaMapper.Extensions
 
         public static MemberExpression GetMemberExpression<A, B>(this Expression<Func<A, B>> expression)
         {
-            return expression.Body as MemberExpression ?? throw new NotMemberExpressionException(expression);
+            //Test to see if the expression is explicitly converted to object
+            var body = (expression.Body is UnaryExpression unary && unary.NodeType == ExpressionType.Convert)
+                ? unary.Operand
+                : expression.Body;
+
+            return body as MemberExpression ?? throw new NotMemberExpressionException(expression);
         }
 
         public static PropertyInfo GetPropertyInfo(this MemberExpression expression)

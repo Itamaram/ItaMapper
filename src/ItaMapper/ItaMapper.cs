@@ -3,7 +3,7 @@ using System.Linq;
 
 namespace ItaMapper
 {
-    public class ItaMapper : BareMetalMapper
+    public class ItaMapper : BareBoneMapper
     {
         public ItaMapper(IEnumerable<TypeMap> maps) : this(maps, new ActivatorInstantiator())
         {

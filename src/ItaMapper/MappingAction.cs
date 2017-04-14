@@ -8,7 +8,7 @@ namespace ItaMapper
 {
     public interface MappingAction<in Source, in Destination>
     {
-        void Map(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context);
+        void Map(Source source, Destination destination, MappingContext context);
         int Priority { get; }
 
         //The target member (or null)
@@ -22,7 +22,7 @@ namespace ItaMapper
             Target = expression.GetMemberExpression().GetPropertyInfo().Name;
         }
 
-        public void Map(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public void Map(Source source, Destination destination, MappingContext context)
         {
         }
 
@@ -33,17 +33,17 @@ namespace ItaMapper
 
     public class TargetFreeAction<Source, Destination> : MappingAction<Source, Destination>
     {
-        private readonly Action<Source, Destination, ObjectInstantiator, Mapper, Context> action;
+        private readonly Action<Source, Destination, MappingContext> action;
 
-        public TargetFreeAction(Action<Source, Destination, ObjectInstantiator, Mapper, Context> action, int priority)
+        public TargetFreeAction(Action<Source, Destination, MappingContext> action, int priority)
         {
             this.action = action;
             Priority = priority;
         }
 
-        public void Map(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public void Map(Source source, Destination destination, MappingContext context)
         {
-            action(source, destination, instantiator, mapper, context);
+            action(source, destination, context);
         }
 
         public int Priority { get; }
@@ -68,14 +68,14 @@ namespace ItaMapper
             setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), PropertyInfo.Name);
         }
 
-        public void Map(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public void Map(Source source, Destination destination, MappingContext context)
         {
-            GetValue(source, destination, instantiator, mapper, context)
-                .Pipe(value => mapper.Map(value.Object, value.Type, PropertyInfo.PropertyType, context))
+            GetValue(source, destination, context)
+                .Pipe(value => context.Mapper.Map(value.Object, value.Type, PropertyInfo.PropertyType, context.State))
                 .Do(value => setter(destination, value));
         }
 
-        public abstract TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context);
+        public abstract TypedObject GetValue(Source source, Destination destination, MappingContext context);
 
         public int Priority { get; } = MappingPhase.Mapping;
 
@@ -96,22 +96,18 @@ namespace ItaMapper
 
     public class PropertyMapArguments<A, B>
     {
-        public PropertyMapArguments(A source, B destination, ObjectInstantiator instantiator, Mapper mapper, PropertyInfo pi, Context context)
+        public PropertyMapArguments(A source, B destination, PropertyInfo pi, MappingContext context)
         {
             Source = source;
             Destination = destination;
-            ObjectInstantiator = instantiator;
-            Mapper = mapper;
             PropertyInfo = pi;
             Context = context;
         }
 
         public A Source { get; }
         public B Destination { get; }
-        public ObjectInstantiator ObjectInstantiator { get; }
-        public Mapper Mapper { get; }
         public PropertyInfo PropertyInfo { get; }
-        public Context Context { get; }
+        public MappingContext Context { get; }
     }
 
     public class InlinePropertyMap<Source, Destination, Result> : PropertyMapAction<Source, Destination>
@@ -123,9 +119,9 @@ namespace ItaMapper
             this.func = func;
         }
 
-        public override TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public override TypedObject GetValue(Source source, Destination destination, MappingContext context)
         {
-            return new PropertyMapArguments<Source, Destination>(source, destination, instantiator, mapper, PropertyInfo, context)
+            return new PropertyMapArguments<Source, Destination>(source, destination, PropertyInfo, context)
                 .Pipe(func)
                 .Pipe(value => new TypedObject(typeof(Result), value));
         }
@@ -140,14 +136,25 @@ namespace ItaMapper
             this.func = func;
         }
 
-        public InlinePropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> func) : base(expression)
+        public override TypedObject GetValue(A source, B destination, MappingContext context)
+        {
+            return new PropertyMapArguments<A, B>(source, destination,PropertyInfo, context)
+                .Pipe(func);
+        }
+    }
+
+    public class ResolverPropertyMap<A, B> : PropertyMapAction<A, B>
+    {
+        private readonly Func<PropertyMapArguments<A, B>, TypedObject> func;
+
+        public ResolverPropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> func) : base(expression)
         {
             this.func = args => func(args).Pipe(resolver => new TypedObject(resolver.MemberType, resolver.Resolve(args)));
         }
 
-        public override TypedObject GetValue(A source, B destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public override TypedObject GetValue(A source, B destination, MappingContext context)
         {
-            return new PropertyMapArguments<A, B>(source, destination, instantiator, mapper, PropertyInfo, context)
+            return new PropertyMapArguments<A, B>(source, destination, PropertyInfo, context)
                 .Pipe(func);
         }
     }
@@ -169,7 +176,7 @@ namespace ItaMapper
             getter = new ExpressionBuilder().Getter(typeof(Source), PropertyInfo.Name);
         }
 
-        public override TypedObject GetValue(Source source, Destination destination, ObjectInstantiator instantiator, Mapper mapper, Context context)
+        public override TypedObject GetValue(Source source, Destination destination, MappingContext context)
         {
             return new TypedObject(sourceProperty, getter(source));
         }

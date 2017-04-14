@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using ItaMapper.Exceptions;
 
 namespace ItaMapper
 {
@@ -61,12 +62,12 @@ namespace ItaMapper
 
         public static TypeMap ToMap<A, B>(this TypeMapConfig<A, B> config) => new ActionAggregateTypeMap<A, B>(config);
 
-        public static TypeMapConfig<A, B> Before<A, B>(this TypeMapConfig<A, B> config, Action<A, B, ObjectInstantiator, Mapper, Context> before)
+        public static TypeMapConfig<A, B> Before<A, B>(this TypeMapConfig<A, B> config, Action<A, B,MappingContext> before)
         {
             return config.AddAction(new TargetFreeAction<A, B>(before, MappingPhase.BeforeMapping));
         }
 
-        public static TypeMapConfig<A, B> After<A, B>(this TypeMapConfig<A, B> config, Action<A, B, ObjectInstantiator, Mapper, Context> after)
+        public static TypeMapConfig<A, B> After<A, B>(this TypeMapConfig<A, B> config, Action<A, B, MappingContext> after)
         {
             return config.AddAction(new TargetFreeAction<A, B>(after, MappingPhase.AfterMapping));
         }
@@ -90,7 +91,7 @@ namespace ItaMapper
 
         public TypeMapConfig<A, B> Using(Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> factory)
         {
-            return config.AddAction(new InlinePropertyMap<A, B>(selector, factory));
+            return config.AddAction(new ResolverPropertyMap<A, B>(selector, factory));
         }
 
         public TypeMapConfig<A, B> Using(ValueResolver<A, B> resolver)
@@ -98,13 +99,16 @@ namespace ItaMapper
             return Using(_ => resolver);
         }
 
-        //todo Using(Type)
+        public TypeMapConfig<A, B> Using(Type resolver)
+        {
+            if (!typeof(ValueResolver<A, B>).IsAssignableFrom(resolver))
+                throw new TypeIsNotResolverException<A,B>(resolver);
+
+            return Using(args => (ValueResolver<A, B>)args.Context.Instantiator.Create(resolver));
+        }
 
         //todo can I pull this out to an extension?
-        public TypeMapConfig<A, B> Using<C>() where C : ValueResolver<A, B>
-        {
-            return Using(args => (ValueResolver<A, B>)args.ObjectInstantiator.Create(typeof(C)));
-        }
+        public TypeMapConfig<A, B> Using<C>() where C : ValueResolver<A, B> => Using(typeof(C));
     }
 
     public static class TypeMapContextExtensions

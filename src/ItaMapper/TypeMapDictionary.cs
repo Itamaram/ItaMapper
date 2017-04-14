@@ -20,7 +20,22 @@ namespace ItaMapper
 
         public bool TryGet(Type source, Type destination, out TypeMap map)
         {
-            return store.TryGetValue((source, destination), out map);
+            return store.TryGetValue((source, destination), out map)
+                || TryGetOpenGeneric(source, destination, out map);
+        }
+
+        //This needs to be configurable/extensible regarding open types attempted
+        private bool TryGetOpenGeneric(Type source, Type destination, out TypeMap map)
+        {
+            var src = source.IsGenericType
+                ? source.GetGenericTypeDefinition()
+                : source;
+
+            var dst = destination.IsGenericType
+                ? destination.GetGenericTypeDefinition()
+                : destination;
+
+            return store.TryGetValue((src, dst), out map);
         }
     }
 

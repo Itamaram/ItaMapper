@@ -11,5 +11,7 @@ namespace ItaMapper.Extensions
         }
 
         public static B Pipe<A, B>(this A a, Func<A, B> map) => map(a);
+
+        public static A Cast<A>(this object o) => (A) o;
     }
 }
