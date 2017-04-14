@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using ItaMapper.Exceptions;
 
 namespace ItaMapper
@@ -45,6 +46,16 @@ namespace ItaMapper
                 .Aggregate(config, (c, p) => c.AddAction(new DirectPropertyMap<A, B>(p.Name)));
         }
 
+        public static TypeMapConfig<A, B> AssertAllPropertiesAreMapped<A, B>(this TypeMapConfig<A, B> config)
+        {
+            typeof(B).GetProperties()
+                .FirstOrDefault(p => !config.Targeting(p.Name))
+                ?.Do(p => throw new UnmappedPropertyException<A, B>(p));
+
+            return config;
+        }
+
+        //todo remove this
         public static TypeMapConfig<A, B> Map<A, B, C>(this TypeMapConfig<A, B> config, Expression<Func<B, object>> selector, Func<PropertyMapArguments<A, B>, C> map)
         {
             return config.AddAction(new InlinePropertyMap<A, B, C>(selector, map));
@@ -62,7 +73,7 @@ namespace ItaMapper
 
         public static TypeMap ToMap<A, B>(this TypeMapConfig<A, B> config) => new ActionAggregateTypeMap<A, B>(config);
 
-        public static TypeMapConfig<A, B> Before<A, B>(this TypeMapConfig<A, B> config, Action<A, B,MappingContext> before)
+        public static TypeMapConfig<A, B> Before<A, B>(this TypeMapConfig<A, B> config, Action<A, B, MappingContext> before)
         {
             return config.AddAction(new TargetFreeAction<A, B>(before, MappingPhase.BeforeMapping));
         }
@@ -78,6 +89,14 @@ namespace ItaMapper
         }
     }
 
+    public class UnmappedPropertyException<A, B> : Exception
+    {
+        public UnmappedPropertyException(PropertyInfo pi)
+            : base($"TypeMap {typeof(A)} -> {typeof(B)} does not map to destination property '{pi.Name}'")
+        {
+        }
+    }
+
     public class TypeMapContext<A, B>
     {
         private readonly TypeMapConfig<A, B> config;
@@ -87,6 +106,11 @@ namespace ItaMapper
         {
             this.config = config;
             this.selector = selector;
+        }
+
+        public TypeMapConfig<A, B> WithAction(Func<Expression<Func<B, object>>, MappingAction<A, B>> action)
+        {
+            return config.AddAction(action(selector));
         }
 
         public TypeMapConfig<A, B> Using(Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> factory)
@@ -102,7 +126,7 @@ namespace ItaMapper
         public TypeMapConfig<A, B> Using(Type resolver)
         {
             if (!typeof(ValueResolver<A, B>).IsAssignableFrom(resolver))
-                throw new TypeIsNotResolverException<A,B>(resolver);
+                throw new TypeIsNotResolverException<A, B>(resolver);
 
             return Using(args => (ValueResolver<A, B>)args.Context.Instantiator.Create(resolver));
         }
@@ -121,6 +145,21 @@ namespace ItaMapper
         public static TypeMapConfig<A, B> From<A, B, C>(this TypeMapContext<A, B> context, Func<A, C> map)
         {
             return context.Using(new InlineResolver<A, B, C>(args => args.Source.Pipe(map)));
+        }
+
+        public static TypeMapConfig<A, B> FromNamedProperty<A, B>(this TypeMapContext<A, B> context, string name)
+        {
+            return context.WithAction(_ => new DirectPropertyMap<A, B>(name));
+        }
+
+        public static TypeMapConfig<A, B> ToSelf<A, B>(this TypeMapContext<A, B> context)
+        {
+            return context.WithAction(s => new DirectPropertyMap<A, B>(s));
+        }
+
+        public static TypeMapConfig<A, B> Ignore<A, B>(this TypeMapContext<A, B> context)
+        {
+            return context.WithAction(e => new NoopAction<A, B>(e));
         }
     }
 
