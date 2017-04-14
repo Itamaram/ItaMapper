@@ -38,6 +38,105 @@ namespace ItaMapper
         protected override TDestination Map(TSource source, MappingContext context) => map(source, context);
     }
 
+    public class GenericTypeDefinition
+    {
+        private readonly Type open;
+
+        public GenericTypeDefinition(Type open)
+        {
+            //ensure actually open
+            this.open = open;
+            GenericArgumentsCount = open.GetGenericArguments().Length;
+        }
+
+        public int GenericArgumentsCount { get; }
+
+        public Type MakeGeneric(Type[] types)
+        {
+            return open.MakeGenericType(types);
+        }
+
+        public bool TotalArgCountMatch(params Type[] types)
+        {
+            return GenericArgumentsCount == types.Sum(t => t.GenericTypeArguments.Length);
+        }
+    }
+
+    public class GenericTypeMapTypeProvider
+    {
+        private readonly GenericTypeDefinition primary;
+        private readonly GenericTypeDefinition fallback;
+
+        public GenericTypeMapTypeProvider(Type primary)
+        {
+            this.primary = new GenericTypeDefinition(primary);
+        }
+
+        public GenericTypeMapTypeProvider(Type primary, Type fallback)
+        {
+            this.primary = new GenericTypeDefinition(primary);
+            this.fallback = new GenericTypeDefinition(fallback);
+
+            //ensure types are generic with open params with separate having more variables than overlap
+        }
+
+        public Type Create(Type source, Type destination)
+        {
+            if (primary.TotalArgCountMatch(source, destination))
+                return primary.MakeGeneric(source.GenericTypeArguments.Concat(destination.GenericTypeArguments).ToArray());
+
+            if (fallback == null)
+            {
+                if (!source.GenericTypeArguments.SequenceEqual(destination.GenericTypeArguments))
+                    throw new Exception();
+
+                if (!primary.TotalArgCountMatch(source))
+                    throw new Exception();
+
+                return primary.MakeGeneric(source.GenericTypeArguments);
+            }
+
+            if (source.GenericTypeArguments.SequenceEqual(destination.GenericTypeArguments) && primary.TotalArgCountMatch(source))
+                return primary.MakeGeneric(source.GenericTypeArguments);
+
+            if (fallback.TotalArgCountMatch(source, destination))
+                return fallback.MakeGeneric(source.GenericTypeArguments.Concat(destination.GenericTypeArguments).ToArray());
+
+            throw new Exception();
+        }
+    }
+
+    public class GenericFactoryTypeMap : TypeMap
+    {
+        private readonly GenericTypeMapTypeProvider provider;
+
+        public GenericFactoryTypeMap(Type source, Type destination, Type factory)
+        {
+            Source = source;
+            Destination = destination;
+            provider = new GenericTypeMapTypeProvider(factory);
+        }
+
+        public GenericFactoryTypeMap(Type source, Type destination, Type factory, Type fallback)
+        {
+            Source = source;
+            Destination = destination;
+            provider = new GenericTypeMapTypeProvider(factory, fallback);
+        }
+
+        public Type Source { get; }
+
+        public Type Destination { get; }
+
+        public object Map(object source, MappingContext context)
+        {
+            return provider.Create(context.Source, context.Destination)
+                .Pipe(context.Instantiator.Create)
+                .Cast<TypeMap>()
+                .Map(source, context);
+        }
+    }
+
     public class FactoryTypeMap : TypeMap
     {
         private readonly Type map;
@@ -58,34 +157,7 @@ namespace ItaMapper
 
         public object Map(object source, MappingContext context)
         {
-            var type = map.IsGenericTypeDefinition ? MakeGenericType(context.Source, context.Destination) : map;
-            return context.Instantiator.Create(type).Cast<TypeMap>().Map(source, context);
-        }
-
-        private Type MakeGenericType(Type source, Type destination)
-        {
-            var count = map.GetGenericArguments().Length;
-
-            if (source.GenericTypeArguments.Length + destination.GenericTypeArguments.Length == count)
-                return MakeGenericType(map, source.GenericTypeArguments.Concat(destination.GenericTypeArguments).ToArray());
-
-            if (source.GenericTypeArguments.SequenceEqual(destination.GenericTypeArguments) && source.GenericTypeArguments.Length == count)
-                return MakeGenericType(map, source.GenericTypeArguments);
-
-            throw new Exception($"Couldn't make type {map} generic using [{string.Join<Type>(", ", source.GenericTypeArguments)}] and [{string.Join<Type>(", ", destination.GenericTypeArguments)}]");
-        }
-
-        private static Type MakeGenericType(Type generic, Type[] args)
-        {
-            try
-            {
-                return generic.MakeGenericType(args);
-            }
-            catch (ArgumentException e)
-            {
-                //todo create exception
-                throw new Exception($"Couldn't make type {generic} generic using [{string.Join<Type>(", ", args)}]", e);
-            }
+            return context.Instantiator.Create(map).Cast<TypeMap>().Map(source, context);
         }
     }
 

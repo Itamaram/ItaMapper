@@ -39,7 +39,7 @@ namespace ItaMapper.Tests
         [Test]
         public void SingleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<>));
+            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<>));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
@@ -52,7 +52,7 @@ namespace ItaMapper.Tests
         [Test]
         public void DoubleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
+            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
@@ -65,7 +65,7 @@ namespace ItaMapper.Tests
         [Test]
         public void DoubleToSingleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
+            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
