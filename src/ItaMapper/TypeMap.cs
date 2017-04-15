@@ -38,69 +38,155 @@ namespace ItaMapper
         protected override TDestination Map(TSource source, MappingContext context) => map(source, context);
     }
 
-    public class GenericTypeDefinition
+    public static class GenericTypeFactory
     {
-        private readonly Type open;
-
-        public GenericTypeDefinition(Type open)
+        public static bool IsOpen(Type type)
         {
-            //ensure actually open
-            this.open = open;
-            GenericArgumentsCount = open.CountOpenGenerics();
+            return type == typeof(Array) || type.IsGenericTypeDefinition;
         }
 
-        public int GenericArgumentsCount { get; }
-
-        public Type MakeGeneric(Type[] types)
+        public static OpenGenericType GetOpen(Type type)
         {
-            return open.MakeGeneric(types);
+            if (type == typeof(Array))
+                return new OpenArray();
+
+            return new OpenType(type);
         }
 
-        public bool TotalArgCountMatch(params Type[] types)
+        public static ClosedGenericType GetClosed(Type type)
         {
-            return GenericArgumentsCount == types.Sum(t => t.GetClosedGenerics().Length);
+            if (type.IsArray)
+                return new ClosedArray(type);
+
+            return new ClosedType(type);
+        }
+    }
+
+    public static class OpenGenericTypeExtensions
+    {
+        public static Type MakeGenericType(this OpenGenericType open, params ClosedGenericType[] closed)
+        {
+            return open.MakeGenericType(closed.SelectMany(c => c.GenericArguments).ToArray());
+        }
+
+        public static Type MakeGenericType(this OpenGenericType open, ClosedGenericType closed)
+        {
+            return open.MakeGenericType(closed.GenericArguments);
+        }
+    }
+
+    public interface OpenGenericType
+    {
+        int ArgumentsCount { get; }
+        Type MakeGenericType(Type[] args);
+    }
+
+    public class OpenArray : OpenGenericType
+    {
+        public int ArgumentsCount { get; } = 1;
+
+        public Type MakeGenericType(Type[] args)
+        {
+            if (args.Length != 1)
+                throw new Exception(/*todo*/);
+
+            return Array.CreateInstance(args[0], 0).GetType();
+        }
+    }
+
+    //This actually handles nongenerics too. Whoops.
+    public class OpenType : OpenGenericType
+    {
+        private readonly Type type;
+
+        public OpenType(Type type)
+        {
+            this.type = type;
+            ArgumentsCount = type.IsGenericTypeDefinition ? type.GetGenericArguments().Length : 0;
+        }
+
+        public int ArgumentsCount { get; }
+
+        public Type MakeGenericType(Type[] args)
+        {
+            return ArgumentsCount == 0 ? type : type.MakeGenericType(args);
+        }
+    }
+
+    public interface ClosedGenericType
+    {
+        Type[] GenericArguments { get; }
+    }
+
+    public class ClosedType : ClosedGenericType
+    {
+        public ClosedType(Type type)
+        {
+            GenericArguments = type.GenericTypeArguments;
+        }
+
+        public Type[] GenericArguments { get; }
+    }
+
+    public class ClosedArray : ClosedGenericType
+    {
+        public ClosedArray(Type type)
+        {
+            GenericArguments = new[] { type.GetElementType() };
+        }
+
+        public Type[] GenericArguments { get; }
+    }
+
+    internal static class GenericTypeDefinitionExtensions
+    {
+        public static bool TotalArgCountMatch(this OpenGenericType generic, params ClosedGenericType[] types)
+        {
+            return generic.ArgumentsCount == types.Sum(t => t.GenericArguments.Length);
         }
     }
 
     public class GenericTypeMapTypeProvider : TypeMapTypeProvider
     {
-        private readonly GenericTypeDefinition primary;
-        private readonly GenericTypeDefinition fallback;
+        private readonly OpenGenericType primary;
+        private readonly OpenGenericType fallback;
 
         public GenericTypeMapTypeProvider(Type primary)
         {
-            this.primary = new GenericTypeDefinition(primary);
+            this.primary = GenericTypeFactory.GetOpen(primary);
         }
 
         public GenericTypeMapTypeProvider(Type primary, Type fallback)
         {
-            this.primary = new GenericTypeDefinition(primary);
-            this.fallback = new GenericTypeDefinition(fallback);
+            this.primary = GenericTypeFactory.GetOpen(primary);
+            this.fallback = GenericTypeFactory.GetOpen(fallback);
 
-            //ensure types are generic with open params with separate having more variables than overlap
+            //todo ensure types are generic with open params with separate having more variables than overlap
         }
 
         public Type Create(Type source, Type destination)
         {
-            if (primary.TotalArgCountMatch(source, destination))
-                return primary.MakeGeneric(source.GetClosedGenerics().Concat(destination.GetClosedGenerics()).ToArray());
+            var src = GenericTypeFactory.GetClosed(source);
+            var dst = GenericTypeFactory.GetClosed(destination);
+            if (primary.TotalArgCountMatch(src, dst))
+                return primary.MakeGenericType(src, dst);
 
             if (fallback == null)
             {
-                if (!source.GetClosedGenerics().SequenceEqual(destination.GetClosedGenerics()))
+                if (!src.GenericArguments.SequenceEqual(dst.GenericArguments))
                     throw new Exception();
 
-                if (!primary.TotalArgCountMatch(source))
+                if (!primary.TotalArgCountMatch(src))
                     throw new Exception();
 
-                return primary.MakeGeneric(source.GetClosedGenerics());
+                return primary.MakeGenericType(src);
             }
 
-            if (source.GetClosedGenerics().SequenceEqual(destination.GetClosedGenerics()) && primary.TotalArgCountMatch(source))
-                return primary.MakeGeneric(source.GetClosedGenerics());
+            if (src.GenericArguments.SequenceEqual(dst.GenericArguments) && primary.TotalArgCountMatch(src))
+                return primary.MakeGenericType(src);
 
-            if (fallback.TotalArgCountMatch(source, destination))
-                return fallback.MakeGeneric(source.GetClosedGenerics().Concat(destination.GetClosedGenerics()).ToArray());
+            if (fallback.TotalArgCountMatch(src, dst))
+                return fallback.MakeGenericType(src, dst);
 
             throw new Exception();
         }
@@ -251,7 +337,7 @@ namespace ItaMapper
 
         private static TypeMapTypeProvider GetProvider(Type provider)
         {
-            if(provider.IsOpenGeneric())
+            if (GenericTypeFactory.IsOpen(provider))
                 return new GenericTypeMapTypeProvider(provider);
 
             return new IdentityTypeMapTypeProvider(provider);

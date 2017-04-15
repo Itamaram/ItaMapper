@@ -54,7 +54,6 @@
     <Compile Include="Extensions\EnumerableExtensions.cs" />
     <Compile Include="Extensions\ExpressionExtensions.cs" />
     <Compile Include="Extensions\FluentExtensions.cs" />
-    <Compile Include="Extensions\GenericTypeExtensions.cs" />
     <Compile Include="ItaMapper.cs" />
     <Compile Include="Mapper.cs" />
     <Compile Include="MappingAction.cs" />
