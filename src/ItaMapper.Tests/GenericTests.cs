@@ -39,40 +39,40 @@ namespace ItaMapper.Tests
         [Test]
         public void SingleTypeTest()
         {
-            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<>));
+            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<>)));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
                 new FuncTypeMap<string, string>((s, _) => s),
             }, new ActivatorInstantiator());
 
-            Assert.AreEqual("X", mapper.Map<Bar<string>>(new Foo<string> {Value = "X"}).Value);
+            Assert.AreEqual("X", mapper.Map<Bar<string>>(new Foo<string> { Value = "X" }).Value);
         }
 
         [Test]
         public void DoubleTypeTest()
         {
-            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
+            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<,>)));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
                 new FuncTypeMap<string, string>((s, _) => s),
             }, new ActivatorInstantiator());
 
-            Assert.AreEqual("X", mapper.Map<Bar<string>>(new Foo<string> {Value = "X"}).Value);
+            Assert.AreEqual("X", mapper.Map<Bar<string>>(new Foo<string> { Value = "X" }).Value);
         }
 
         [Test]
         public void DoubleToSingleTypeTest()
         {
-            var map = new GenericFactoryTypeMap(typeof(Foo<>), typeof(Bar<>), typeof(FooBarTypeMap<,>));
+            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<,>)));
             var mapper = new BareBoneMapper(new TypeMap[]
             {
                 map,
                 new FuncTypeMap<int, string>((s, _) => $"{s}"),
             }, new ActivatorInstantiator());
 
-            Assert.AreEqual("1", mapper.Map<Bar<string>>(new Foo<int> {Value = 1}).Value);
+            Assert.AreEqual("1", mapper.Map<Bar<string>>(new Foo<int> { Value = 1 }).Value);
         }
     }
 }

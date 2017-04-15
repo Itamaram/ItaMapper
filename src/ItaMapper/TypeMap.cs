@@ -62,7 +62,7 @@ namespace ItaMapper
         }
     }
 
-    public class GenericTypeMapTypeProvider
+    public class GenericTypeMapTypeProvider : TypeMapTypeProvider
     {
         private readonly GenericTypeDefinition primary;
         private readonly GenericTypeDefinition fallback;
@@ -106,26 +106,38 @@ namespace ItaMapper
         }
     }
 
-    public class GenericFactoryTypeMap : TypeMap
+    public interface TypeMapTypeProvider
     {
-        private readonly GenericTypeMapTypeProvider provider;
+        Type Create(Type source, Type destination);
+    }
 
-        public GenericFactoryTypeMap(Type source, Type destination, Type factory)
+    public class IdentityTypeMapTypeProvider : TypeMapTypeProvider
+    {
+        private readonly Type map;
+
+        public IdentityTypeMapTypeProvider(Type map)
         {
-            Source = source;
-            Destination = destination;
-            provider = new GenericTypeMapTypeProvider(factory);
+            if (!typeof(TypeMap).IsAssignableFrom(map))
+                throw new Exception($"{map} is not assignable from TypeMap");
+
+            this.map = map;
         }
 
-        public GenericFactoryTypeMap(Type source, Type destination, Type factory, Type fallback)
+        public Type Create(Type source, Type destination) => map;
+    }
+
+    public class FactoryTypeMap : TypeMap
+    {
+        private readonly TypeMapTypeProvider provider;
+
+        public FactoryTypeMap(Type source, Type destination, TypeMapTypeProvider provider)
         {
+            this.provider = provider;
             Source = source;
             Destination = destination;
-            provider = new GenericTypeMapTypeProvider(factory, fallback);
         }
 
         public Type Source { get; }
-
         public Type Destination { get; }
 
         public object Map(object source, MappingContext context)
@@ -137,35 +149,17 @@ namespace ItaMapper
         }
     }
 
-    public class FactoryTypeMap : TypeMap
+    public class PassthroughMap : TypeMap
     {
-        private readonly Type map;
-
-        public FactoryTypeMap(Type source, Type destination, Type map)
+        public PassthroughMap(Type type)
         {
-            Source = source;
-            Destination = destination;
-
-            if (!typeof(TypeMap).IsAssignableFrom(map))
-                throw new Exception($"{map} is not assignable from TypeMap");
-
-            this.map = map;
+            Source = type;
+            Destination = type;
         }
 
         public Type Source { get; }
+
         public Type Destination { get; }
-
-        public object Map(object source, MappingContext context)
-        {
-            return context.Instantiator.Create(map).Cast<TypeMap>().Map(source, context);
-        }
-    }
-
-    public class PassthroughMap<A> : TypeMap
-    {
-        public Type Source { get; } = typeof(A);
-
-        public Type Destination { get; } = typeof(A);
 
         public object Map(object source, MappingContext context) => source;
     }
@@ -187,6 +181,85 @@ namespace ItaMapper
                 action.Map(source, dst, context);
 
             return dst;
+        }
+    }
+
+    public static class CreateTypeMap
+    {
+        public static CreateTypeMapFrom From(Type source) => new CreateTypeMapFrom(source);
+
+        public static CreateTypeMapFrom<A> From<A>() => new CreateTypeMapFrom<A>();
+    }
+
+    public class CreateTypeMapFrom
+    {
+        public CreateTypeMapFrom(Type source)
+        {
+            Source = source;
+        }
+
+        public Type Source { get; }
+
+        public CreateTypeMapTo To(Type destination) => new CreateTypeMapTo(Source, destination);
+    }
+
+    public class CreateTypeMapFrom<A> : CreateTypeMapFrom
+    {
+        public CreateTypeMapFrom() : base(typeof(A)) { }
+
+        public CreateTypeMapTo<A, B> To<B>() => new CreateTypeMapTo<A, B>();
+    }
+
+    public class CreateTypeMapTo
+    {
+        public CreateTypeMapTo(Type source, Type destination)
+        {
+            Source = source;
+            Destination = destination;
+        }
+
+        public Type Source { get; }
+        public Type Destination { get; }
+    }
+
+    public class CreateTypeMapTo<A, B> : CreateTypeMapTo
+    {
+        public CreateTypeMapTo() : base(typeof(A), typeof(B)) { }
+    }
+
+    public static class CreateTypeMapExtensions
+    {
+        public static TypeMap Using<A, B>(this CreateTypeMapTo<A, B> tuple, Func<A, MappingContext, B> map)
+        {
+            return new FuncTypeMap<A, B>(map);
+        }
+
+        public static TypeMap Using(this CreateTypeMapTo tuple, Type factory)
+        {
+            return new FactoryTypeMap(tuple.Source, tuple.Destination, GetProvider(factory));
+        }
+
+        public static TypeMap Using(this CreateTypeMapTo tuple, Type primary, Type secondary)
+        {
+            return new FactoryTypeMap(tuple.Source, tuple.Destination, new GenericTypeMapTypeProvider(primary, secondary));
+        }
+
+        public static TypeMapConfig<A, B> Propertywise<A, B>(this CreateTypeMapTo<A, B> tuple)
+        {
+            return new TypeMapConfig<A, B>();
+        }
+
+        private static TypeMapTypeProvider GetProvider(Type provider)
+        {
+            if (provider.IsGenericTypeDefinition)
+                return new GenericTypeMapTypeProvider(provider);
+
+            return new IdentityTypeMapTypeProvider(provider);
+        }
+
+        public static TypeMap ToSelf(this CreateTypeMapFrom tuple)
+        {
+            return new PassthroughMap(tuple.Source);
         }
     }
 }

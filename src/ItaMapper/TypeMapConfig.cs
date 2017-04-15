@@ -34,6 +34,8 @@ namespace ItaMapper
         public IEnumerable<string> Targets => targets;
 
         public bool Targeting(string target) => targets.Contains(target);
+
+        //implicit convert to TypeMap?
     }
 
     public static class TypeMapConfigExtensions

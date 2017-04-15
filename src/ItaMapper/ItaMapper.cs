@@ -15,11 +15,11 @@ namespace ItaMapper
         {
         }
 
-        private static readonly IEnumerable<TypeMap> defaults = new TypeMap[]
+        private static readonly IEnumerable<TypeMap> defaults = new[]
         {
-            new PassthroughMap<string>(),
+            CreateTypeMap.From<string>().ToSelf(),
             //todo more primitives.
-            new GenericFactoryTypeMap(typeof(List<>), typeof(List<>), typeof(ToListTypeMapper<>), typeof(ToListTypeMapper<,>)), 
+            CreateTypeMap.From(typeof(List<>)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>))
         };
     }
 
