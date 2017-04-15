@@ -15,7 +15,9 @@ namespace ItaMapper
 
         public ValueTupleTypeMapDictionary(IEnumerable<TypeMap> maps)
         {
-            store = maps.ToDictionary(m => (m.Source, m.Destination));
+            store = maps
+                .GroupBy(m => (m.Source, m.Destination))
+                .ToDictionary(g => g.Key, g => g.Last());
         }
 
         public bool TryGet(Type source, Type destination, out TypeMap map)
@@ -27,15 +29,28 @@ namespace ItaMapper
         //This needs to be configurable/extensible regarding open types attempted
         private bool TryGetOpenGeneric(Type source, Type destination, out TypeMap map)
         {
-            var src = source.IsGenericType
-                ? source.GetGenericTypeDefinition()
-                : source;
+            map = null;
 
-            var dst = destination.IsGenericType
-                ? destination.GetGenericTypeDefinition()
-                : destination;
+            //I'm really proud of this bytewise OR
+            return TryOpen(source, out var src) | TryOpen(destination, out var dst)
+                   && store.TryGetValue((src ?? source, dst ?? destination), out map);
+        }
 
-            return store.TryGetValue((src, dst), out map);
+        private static bool TryOpen(Type type, out Type open)
+        {
+            if (type.IsGenericType)
+            {
+                open = type.GetGenericTypeDefinition();
+                return true;
+            }
+            if (type.IsArray)
+            {
+                open = typeof(Array);
+                return true;
+            }
+
+            open = null;
+            return false;
         }
     }
 

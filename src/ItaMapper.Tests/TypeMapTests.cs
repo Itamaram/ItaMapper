@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using NUnit.Framework;
 
@@ -127,6 +128,40 @@ namespace ItaMapper.Tests
             sw.Stop();
 
             Console.WriteLine($"1mil {factory.Name} iter: {sw.ElapsedMilliseconds:N0}ms");
+        }
+    }
+
+    public class ItaMapperTests
+    {
+        private class Foo
+        {
+            public List<string> List { get; set; }
+            public string[] Array { get; set; }
+        }
+
+        private class Bar
+        {
+            public List<string> List { get; set; }
+            public List<string> Array { get; set; }
+        }
+
+        [Test]
+        public void Test()
+        {
+            var mapper = CreateTypeMap.From<Foo>().To<Bar>()
+                .Propertywise()
+                .MapRemainingProperties()
+                .AssertAllPropertiesAreMapped()
+                .ToMap().ToMapper();
+
+            var bar = mapper.Map<Bar>(new Foo
+            {
+                List = new List<string> { "X", "Y", "Z" },
+                Array = new[] { "1", "2", "3" }
+            });
+
+            CollectionAssert.AreEqual(new[] { "X", "Y", "Z" }, bar.List);
+            CollectionAssert.AreEqual(new[] { "1", "2", "3" }, bar.Array);
         }
     }
 

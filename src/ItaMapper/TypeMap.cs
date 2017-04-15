@@ -46,19 +46,19 @@ namespace ItaMapper
         {
             //ensure actually open
             this.open = open;
-            GenericArgumentsCount = open.GetGenericArguments().Length;
+            GenericArgumentsCount = open.CountOpenGenerics();
         }
 
         public int GenericArgumentsCount { get; }
 
         public Type MakeGeneric(Type[] types)
         {
-            return open.MakeGenericType(types);
+            return open.MakeGeneric(types);
         }
 
         public bool TotalArgCountMatch(params Type[] types)
         {
-            return GenericArgumentsCount == types.Sum(t => t.GenericTypeArguments.Length);
+            return GenericArgumentsCount == types.Sum(t => t.GetClosedGenerics().Length);
         }
     }
 
@@ -83,24 +83,24 @@ namespace ItaMapper
         public Type Create(Type source, Type destination)
         {
             if (primary.TotalArgCountMatch(source, destination))
-                return primary.MakeGeneric(source.GenericTypeArguments.Concat(destination.GenericTypeArguments).ToArray());
+                return primary.MakeGeneric(source.GetClosedGenerics().Concat(destination.GetClosedGenerics()).ToArray());
 
             if (fallback == null)
             {
-                if (!source.GenericTypeArguments.SequenceEqual(destination.GenericTypeArguments))
+                if (!source.GetClosedGenerics().SequenceEqual(destination.GetClosedGenerics()))
                     throw new Exception();
 
                 if (!primary.TotalArgCountMatch(source))
                     throw new Exception();
 
-                return primary.MakeGeneric(source.GenericTypeArguments);
+                return primary.MakeGeneric(source.GetClosedGenerics());
             }
 
-            if (source.GenericTypeArguments.SequenceEqual(destination.GenericTypeArguments) && primary.TotalArgCountMatch(source))
-                return primary.MakeGeneric(source.GenericTypeArguments);
+            if (source.GetClosedGenerics().SequenceEqual(destination.GetClosedGenerics()) && primary.TotalArgCountMatch(source))
+                return primary.MakeGeneric(source.GetClosedGenerics());
 
             if (fallback.TotalArgCountMatch(source, destination))
-                return fallback.MakeGeneric(source.GenericTypeArguments.Concat(destination.GenericTypeArguments).ToArray());
+                return fallback.MakeGeneric(source.GetClosedGenerics().Concat(destination.GetClosedGenerics()).ToArray());
 
             throw new Exception();
         }
@@ -251,7 +251,7 @@ namespace ItaMapper
 
         private static TypeMapTypeProvider GetProvider(Type provider)
         {
-            if (provider.IsGenericTypeDefinition)
+            if(provider.IsOpenGeneric())
                 return new GenericTypeMapTypeProvider(provider);
 
             return new IdentityTypeMapTypeProvider(provider);

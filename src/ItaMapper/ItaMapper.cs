@@ -11,7 +11,7 @@ namespace ItaMapper
         }
 
         public ItaMapper(IEnumerable<TypeMap> maps, ObjectInstantiator instantiator)
-            : base(maps.Concat(defaults), instantiator)
+            : base(defaults.Concat(maps), instantiator)
         {
         }
 
@@ -19,7 +19,8 @@ namespace ItaMapper
         {
             CreateTypeMap.From<string>().ToSelf(),
             //todo more primitives.
-            CreateTypeMap.From(typeof(List<>)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>))
+            CreateTypeMap.From(typeof(List<>)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>)),
+            CreateTypeMap.From(typeof(Array)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>))
         };
     }
 
