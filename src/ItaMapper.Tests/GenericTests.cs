@@ -39,10 +39,9 @@ namespace ItaMapper.Tests
         [Test]
         public void SingleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<>)));
-            var mapper = new BareBoneMapper(new TypeMap[]
+            var mapper = new BareBoneMapper(new[]
             {
-                map,
+                CreateTypeMap.From(typeof(Foo<>)).To(typeof(Bar<>)).Using(typeof(FooBarTypeMap<>)),
                 new FuncTypeMap<string, string>((s, _) => s),
             }, new ActivatorInstantiator());
 
@@ -52,10 +51,9 @@ namespace ItaMapper.Tests
         [Test]
         public void DoubleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<,>)));
-            var mapper = new BareBoneMapper(new TypeMap[]
+            var mapper = new BareBoneMapper(new[]
             {
-                map,
+                CreateTypeMap.From(typeof(Foo<>)).To(typeof(Bar<>)).Using(typeof(FooBarTypeMap<,>)),
                 new FuncTypeMap<string, string>((s, _) => s),
             }, new ActivatorInstantiator());
 
@@ -65,10 +63,9 @@ namespace ItaMapper.Tests
         [Test]
         public void DoubleToSingleTypeTest()
         {
-            var map = new FactoryTypeMap(typeof(Foo<>), typeof(Bar<>), new GenericTypeMapTypeProvider(typeof(FooBarTypeMap<,>)));
-            var mapper = new BareBoneMapper(new TypeMap[]
+            var mapper = new BareBoneMapper(new[]
             {
-                map,
+                CreateTypeMap.From(typeof(Foo<>)).To(typeof(Bar<>)).Using(typeof(FooBarTypeMap<,>)),
                 new FuncTypeMap<int, string>((s, _) => $"{s}"),
             }, new ActivatorInstantiator());
 
