@@ -45,7 +45,7 @@ namespace ItaMapper
             }
             if (type.IsArray)
             {
-                open = typeof(Array);
+                open = typeof(GenericArray);
                 return true;
             }
 
@@ -53,6 +53,9 @@ namespace ItaMapper
             return false;
         }
     }
+
+    //This is a marker to be used for "generic" arrays
+    public static class GenericArray { }
 
     public class TupleTypeMapDictionary : TypeMapDictionary
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using ItaMapper.Extensions;
 
 namespace ItaMapper
 {
@@ -15,25 +16,47 @@ namespace ItaMapper
         {
         }
 
-        private static readonly IEnumerable<TypeMap> defaults = new[]
+        private static readonly IEnumerable<TypeMap> defaults;
+
+        static ItaMapper()
         {
-            CreateTypeMap.From<string>().ToSelf(),
-            //todo more primitives.
-            CreateTypeMap.From(typeof(List<>)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>)),
-            CreateTypeMap.From(typeof(Array)).To(typeof(List<>)).Using(typeof(ToListTypeMapper<,>))
-        };
+            defaults = MapToEnumerable(typeof(List<>), typeof(ToListTypeMapper<,>))
+                .Concat(MapToEnumerable(typeof(GenericArray), typeof(ToArrayTypeMapper<,>)))
+                .Append(CreateTypeMap.From<string>().ToSelf())
+                //todo more primitives.
+                .ToArray();
+        }
+
+        private static IEnumerable<TypeMap> MapToEnumerable(Type result, Type mapper)
+        {
+            return new[]
+            {
+                typeof(IEnumerable<>),
+                typeof(ICollection<>),
+                typeof(IList<>),
+                typeof(GenericArray),
+                typeof(List<>)
+            }.Select(t => CreateTypeMap.From(t).To(result).Using(mapper));
+        }
     }
 
-    //This will create a new list even when mapping from a list to a list. This is a feature.
-    public class ToListTypeMapper<A> : ToListTypeMapper<A, A> { }
-
-    public class ToListTypeMapper<A, B> : FuncTypeMap<IEnumerable<A>, List<B>>
+    public abstract class EnumerableMapper<A, B, T, U> : TypeMap<A, B> where A : IEnumerable<T> where B : IEnumerable<U>
     {
-        public ToListTypeMapper() : base(Func) { }
-
-        private static List<B> Func(IEnumerable<A> items, MappingContext context)
+        protected override B Map(A source, MappingContext context)
         {
-            return items.Select(i => context.Mapper.Map<A, B>(i, context.State)).ToList();
+            return source.Select(item => context.Mapper.Map<T, U>(item, context.State)).Pipe(CreateEnumerable);
         }
+
+        protected abstract B CreateEnumerable(IEnumerable<U> items);
+    }
+
+    public class ToListTypeMapper<A, B> : EnumerableMapper<IEnumerable<A>, List<B>, A, B>
+    {
+        protected override List<B> CreateEnumerable(IEnumerable<B> items) => items.ToList();
+    }
+
+    public class ToArrayTypeMapper<A, B> : EnumerableMapper<IEnumerable<A>, B[], A, B>
+    {
+        protected override B[] CreateEnumerable(IEnumerable<B> items) => items.ToArray();
     }
 }

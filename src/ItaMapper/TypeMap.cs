@@ -91,7 +91,7 @@ namespace ItaMapper
 
     public class OpenArrayHandler : OpenGenericTypeHandler, OpenGenericType
     {
-        public bool Handles(Type type) => type == typeof(Array);
+        public bool Handles(Type type) => type == typeof(GenericArray);
 
         public OpenGenericType Create(Type type) => this;
 

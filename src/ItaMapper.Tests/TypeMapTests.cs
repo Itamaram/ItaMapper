@@ -143,6 +143,7 @@ namespace ItaMapper.Tests
         {
             public List<string> List { get; set; }
             public List<string> Array { get; set; }
+            public string[] ArrayTarget { get; set; }
         }
 
         [Test]
@@ -150,6 +151,7 @@ namespace ItaMapper.Tests
         {
             var mapper = CreateTypeMap.From<Foo>().To<Bar>()
                 .Propertywise()
+                .Map(b => b.ArrayTarget).From(f => f.List)
                 .MapRemainingProperties()
                 .AssertAllPropertiesAreMapped()
                 .ToMap().ToMapper();
@@ -162,6 +164,7 @@ namespace ItaMapper.Tests
 
             CollectionAssert.AreEqual(new[] { "X", "Y", "Z" }, bar.List);
             CollectionAssert.AreEqual(new[] { "1", "2", "3" }, bar.Array);
+            CollectionAssert.AreEqual(new[] { "X", "Y", "Z" }, bar.ArrayTarget);
         }
     }
 
