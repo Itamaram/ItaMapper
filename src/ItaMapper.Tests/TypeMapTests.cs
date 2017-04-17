@@ -1,7 +1,7 @@
-﻿using System;
+﻿using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using NUnit.Framework;
 
 namespace ItaMapper.Tests
 {
@@ -21,7 +21,10 @@ namespace ItaMapper.Tests
         [Test]
         public void Sanity()
         {
-            var config = new TypeMapConfig<Foo, Bar>().Ignore(b => b.Value2).MapRemainingProperties();
+            var config = new TypeMapConfig<Foo, Bar>()
+                .Map(b => b.Value2).Ignore()
+                .MapRemainingProperties();
+
             var mapper = new ItaMapper(new[] { config.ToMap() });
             var bar = mapper.Map<Bar>(new Foo { Value = "optimism" });
             Assert.AreEqual("optimism", bar.Value);
@@ -31,7 +34,7 @@ namespace ItaMapper.Tests
         public void FunkyExtension()
         {
             var config = new TypeMapConfig<Foo, Bar>()
-                .Map(b => b.Value2, args => args.Source.Value);
+                .Map(b => b.Value2).From(foo => foo.Value);
             var mapper = new ItaMapper(new[] { new ActionAggregateTypeMap<Foo, Bar>(config) });
             var bar = mapper.Map<Bar>(new Foo { Value = "X" });
 
@@ -71,7 +74,7 @@ namespace ItaMapper.Tests
         public void ResolverTest()
         {
             var mapper = new TypeMapConfig<Foo, Bar>()
-                .Map(b => b.Value2).Using<TestResolver>()
+                .Map(b => b.Value2).Resolver<TestResolver>()
                 .ToMap()
                 .ToMapper();
 

@@ -1,8 +1,6 @@
-﻿using System;
-using System.Linq.Expressions;
+﻿using ItaMapper.Extensions;
+using System;
 using System.Reflection;
-using ItaMapper.Exceptions;
-using ItaMapper.Extensions;
 
 namespace ItaMapper
 {
@@ -17,9 +15,9 @@ namespace ItaMapper
 
     public class NoopAction<Source, Destination> : MappingAction<Source, Destination>
     {
-        public NoopAction(Expression<Func<Destination, object>> expression)
+        public NoopAction(string target)
         {
-            Target = expression.GetMemberExpression().GetPropertyInfo().Name;
+            Target = target;
         }
 
         public void Map(Source source, Destination destination, MappingContext context)
@@ -51,35 +49,41 @@ namespace ItaMapper
         public string Target { get; } = null;
     }
 
-    public abstract class PropertyMapAction<Source, Destination> : MappingAction<Source, Destination>
+    public class ResolverMappingAction<A, B> : MappingAction<A, B>
     {
-        private readonly Action<object, object> setter;
-        protected readonly PropertyInfo PropertyInfo;
+        private readonly Func<MappingContext, ValueResolver<A, B>> resolver;
+        private readonly PropertyInfo property;
+        private readonly Action<B, object> setter;
+        
+        //public ResolverMappingAction(string name, Func<MappingContext, ValueResolver<A, B>> resolver)
+        //    : this(typeof(B).GetProperty(name), resolver)
+        //{
+        //}
 
-        protected PropertyMapAction(Expression<Func<Destination, object>> expression)
+        //public ResolverMappingAction(Expression<Func<B, object>> expression, Func<MappingContext, ValueResolver<A, B>> resolver)
+        //    : this(expression.GetMemberExpression().GetPropertyInfo(), resolver)
+        //{
+        //}
+
+        public ResolverMappingAction(PropertyInfo property, Func<MappingContext, ValueResolver<A, B>> resolver)
         {
-            PropertyInfo = expression.GetMemberExpression().GetPropertyInfo();
-            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), PropertyInfo.Name);
+            this.property = property;
+            this.resolver = resolver;
+            Target = property.Name;
+            setter = new ExpressionBuilder().Setter<B>(property);
         }
 
-        protected PropertyMapAction(string name)
+        public void Map(A source, B destination, MappingContext context)
         {
-            PropertyInfo = typeof(Destination).GetProperty(name);
-            setter = new ExpressionSetterFactory().SetterFor(typeof(Destination), PropertyInfo.Name);
+            var r = resolver(context);
+            r.Resolve(new PropertyMapArguments<A, B>(source, destination, property, context))
+                .Pipe(v => context.Mapper.Map(v, r.MemberType, property.PropertyType, context.State))
+                .Do(v => setter(destination, v));
         }
-
-        public void Map(Source source, Destination destination, MappingContext context)
-        {
-            GetValue(source, destination, context)
-                .Pipe(value => context.Mapper.Map(value.Object, value.Type, PropertyInfo.PropertyType, context.State))
-                .Do(value => setter(destination, value));
-        }
-
-        public abstract TypedObject GetValue(Source source, Destination destination, MappingContext context);
 
         public int Priority { get; } = MappingPhase.Mapping;
 
-        public string Target => PropertyInfo.Name;
+        public string Target { get; }
     }
 
     public class TypedObject
@@ -108,77 +112,5 @@ namespace ItaMapper
         public B Destination { get; }
         public PropertyInfo PropertyInfo { get; }
         public MappingContext Context { get; }
-    }
-
-    public class InlinePropertyMap<Source, Destination, Result> : PropertyMapAction<Source, Destination>
-    {
-        private readonly Func<PropertyMapArguments<Source, Destination>, Result> func;
-
-        public InlinePropertyMap(Expression<Func<Destination, object>> expression, Func<PropertyMapArguments<Source, Destination>, Result> func) : base(expression)
-        {
-            this.func = func;
-        }
-
-        public override TypedObject GetValue(Source source, Destination destination, MappingContext context)
-        {
-            return new PropertyMapArguments<Source, Destination>(source, destination, PropertyInfo, context)
-                .Pipe(func)
-                .Pipe(value => new TypedObject(typeof(Result), value));
-        }
-    }
-
-    public class InlinePropertyMap<A, B> : PropertyMapAction<A, B>
-    {
-        private readonly Func<PropertyMapArguments<A, B>, TypedObject> func;
-
-        public InlinePropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, TypedObject> func) : base(expression)
-        {
-            this.func = func;
-        }
-
-        public override TypedObject GetValue(A source, B destination, MappingContext context)
-        {
-            return new PropertyMapArguments<A, B>(source, destination,PropertyInfo, context)
-                .Pipe(func);
-        }
-    }
-
-    public class ResolverPropertyMap<A, B> : PropertyMapAction<A, B>
-    {
-        private readonly Func<PropertyMapArguments<A, B>, TypedObject> func;
-
-        public ResolverPropertyMap(Expression<Func<B, object>> expression, Func<PropertyMapArguments<A, B>, ValueResolver<A, B>> func) : base(expression)
-        {
-            this.func = args => func(args).Pipe(resolver => new TypedObject(resolver.MemberType, resolver.Resolve(args)));
-        }
-
-        public override TypedObject GetValue(A source, B destination, MappingContext context)
-        {
-            return new PropertyMapArguments<A, B>(source, destination, PropertyInfo, context)
-                .Pipe(func);
-        }
-    }
-
-    public class DirectPropertyMap<Source, Destination> : PropertyMapAction<Source, Destination>
-    {
-        private readonly Func<object, object> getter;
-        private readonly Type sourceProperty;
-
-        public DirectPropertyMap(Expression<Func<Destination, object>> expression) : base(expression)
-        {
-            sourceProperty = typeof(Source).GetProperty(PropertyInfo.Name)?.PropertyType ?? throw new NoDirectMapTargetException(typeof(Source), PropertyInfo.Name);
-            getter = new ExpressionBuilder().Getter(typeof(Source), PropertyInfo.Name);
-        }
-
-        public DirectPropertyMap(string name) : base(name)
-        {
-            sourceProperty = typeof(Source).GetProperty(PropertyInfo.Name)?.PropertyType ?? throw new NoDirectMapTargetException(typeof(Source), PropertyInfo.Name);
-            getter = new ExpressionBuilder().Getter(typeof(Source), PropertyInfo.Name);
-        }
-
-        public override TypedObject GetValue(Source source, Destination destination, MappingContext context)
-        {
-            return new TypedObject(sourceProperty, getter(source));
-        }
     }
 }
